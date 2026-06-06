@@ -66,6 +66,15 @@ st.markdown("""
 # ============================================================
 
 @st.cache_data
+def download_and_load_geo_data():
+    import urllib.request
+    import tempfile
+    url = "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE45nnn/GSE45827/matrix/GSE45827_series_matrix.txt.gz"
+    tmp = tempfile.NamedTemporaryFile(suffix='.txt.gz', delete=False)
+    urllib.request.urlretrieve(url, tmp.name)
+    return load_geo_data(tmp.name)
+
+@st.cache_data
 def load_geo_data(filepath):
     """
     Parse GSE45827 GEO series matrix file.
@@ -429,16 +438,21 @@ with st.sidebar:
     ])
 
     if data_source == "🔬 Real GEO Data (GSE45827)":
-        geo_path = os.path.expanduser("~/Desktop/rna-marker-python/GSE45827.txt.gz")
         if st.button("Load GEO Data"):
-            with st.spinner("Parsing GSE45827 (real breast cancer data)..."):
-                df, err = load_geo_data(geo_path)
-                if err:
-                    st.error(f"Error: {err}")
-                else:
+            with st.spinner("Loading real TCGA-BRCA data from cBioPortal..."):
+                try:
+                    import urllib.request
+                    url = "https://raw.githubusercontent.com/Chuck925/rna-marker-python/main/tcga_brca_real.csv"
+                    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(req, timeout=15) as r:
+                        import io
+                        df = pd.read_csv(io.StringIO(r.read().decode("utf-8")))
+                    df["label"] = pd.Categorical(df["label"].str.strip(), categories=["Normal","Cancer"])
                     st.session_state.df = df
                     st.session_state.results = None
-                    st.success(f"✅ Loaded! {df.shape[0]} samples × {df.shape[1]-1} genes")
+                    st.success(f"✅ Real TCGA-BRCA data loaded! {df.shape[0]} samples × {df.shape[1]-1} genes")
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
     elif data_source == "🧪 Simulated TCGA-BRCA":
         n_cancer = st.slider("Cancer samples", 50, 200, 100)
